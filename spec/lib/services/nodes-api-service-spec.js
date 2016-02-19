@@ -1,14 +1,15 @@
-// Copyright 2015, EMC, Inc.
-/* jshint node:true */
+// Copyright 2016, EMC, Inc.
 
 "use strict";
 
 describe("Http.Services.Api.Nodes", function () {
     var nodeApiService;
+    var workflowApiService;
     var Errors;
     var taskGraphProtocol;
     var waterline;
     var updateByIdentifier;
+    var create;
     var needByIdentifier;
     var getActiveTaskGraph;
     var computeNode;
@@ -17,16 +18,20 @@ describe("Http.Services.Api.Nodes", function () {
 
     before("Http.Services.Api.Nodes before", function() {
         helper.setupInjector([
+            onHttpContext.prerequisiteInjectables,
             helper.require("/lib/services/nodes-api-service"),
+            helper.require("/lib/services/workflow-api-service"),
             dihelper.simpleWrapper({}, 'Task.Services.OBM'),
             dihelper.simpleWrapper({}, 'ipmi-obm-service')
         ]);
         nodeApiService = helper.injector.get("Http.Services.Api.Nodes");
+        workflowApiService = helper.injector.get("Http.Services.Api.Workflows");
         Errors = helper.injector.get("Errors");
         taskGraphProtocol = helper.injector.get("Protocol.TaskGraphRunner");
         waterline = helper.injector.get('Services.Waterline');
         _ = helper.injector.get('_');
         waterline.nodes = {
+            create: function() {},
             needByIdentifier: function() {},
             updateByIdentifier: function() {},
             destroy: function() {}
@@ -70,6 +75,7 @@ describe("Http.Services.Api.Nodes", function () {
             ]
         };
 
+        create = this.sandbox.stub(waterline.nodes, 'create');
         needByIdentifier = this.sandbox.stub(waterline.nodes, 'needByIdentifier');
         updateByIdentifier = this.sandbox.stub(waterline.nodes, 'updateByIdentifier');
         getActiveTaskGraph = this.sandbox.stub(taskGraphProtocol, 'getActiveTaskGraph');
@@ -78,6 +84,133 @@ describe("Http.Services.Api.Nodes", function () {
 
     afterEach("Http.Services.Api.Nodes afterEach", function() {
         this.sandbox.restore();
+    });
+
+    describe("postNode", function() {
+        var node = {
+            id: '1234abcd1234abcd1234abcd',
+            name: 'name',
+            type: 'compute',
+            obmSettings: [
+                {
+                    service: 'ipmi-obm-service',
+                    config: {
+                        host: '1.2.3.4',
+                        user: 'myuser',
+                        password: 'mypass'
+                    }
+                }
+            ]
+        };
+
+        it('should create a node', function () {
+            waterline.nodes.create.resolves(node);
+            return nodeApiService.postNode(node)
+            .then(function() {
+                expect(waterline.nodes.create).to.have.been.calledOnce;
+                expect(
+                    waterline.nodes.create.firstCall.args[0]
+                ).to.have.property('id').and.equal(node.id);
+            });
+        });
+
+        it('should run discovery if the requested node is an autoDiscoverable switch', function() {
+            var switchNode = {
+                id: '1234abcd1234abcd1234abcd',
+                name: 'name',
+                snmpSettings: {
+                    host: '1.2.3.4',
+                    community: 'community'
+                },
+                autoDiscover: true,
+                type: 'switch'
+            };
+
+            waterline.nodes.create.resolves(switchNode);
+            this.sandbox.stub(workflowApiService, 'createAndRunGraph').resolves({});
+
+            return nodeApiService.postNode({})
+            .then(function() {
+                expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
+                expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                    {
+                        name: 'Graph.Switch.Discovery',
+                        options: { defaults: switchNode.snmpSettings }
+                    },
+                    switchNode.id
+                );
+            });
+        });
+
+        it('should run discovery if the requested node is an autoDiscoverable mgmt server',
+        function() {
+            var mgmtNode = {
+                id: '1234abcd1234abcd1234abce',
+                name: 'mgmt server',
+                obmSettings: [
+                    {
+                        config: {
+                            host: '1.2.3.4',
+                            user: 'user',
+                            password: 'password'
+                        },
+                        service: 'ipmi-obm-service'
+                    }
+                ],
+                autoDiscover: true,
+                type: 'mgmt'
+            };
+            var options = {
+                defaults: {
+                    graphOptions: {
+                        target: mgmtNode.id
+                    },
+                    nodeId: mgmtNode.id
+                }
+            };
+
+            waterline.nodes.create.resolves(mgmtNode);
+            this.sandbox.stub(workflowApiService, 'createAndRunGraph').resolves({});
+
+            return nodeApiService.postNode({})
+            .then(function() {
+                expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
+                expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                    {
+                        name: 'Graph.MgmtSKU.Discovery',
+                        options: options
+                    }
+                );
+            });
+        });
+
+        it('should run discovery if the requested node is an autoDiscoverable PDU',
+        function() {
+            var pduNode = {
+                id: '1234abcd1234abcd1234abcd',
+                name: 'name',
+                snmpSettings: {
+                    host: '1.2.3.4',
+                    community: 'community'
+                },
+                autoDiscover: true,
+                type: 'pdu'
+            };
+            waterline.nodes.create.resolves(pduNode);
+            this.sandbox.stub(workflowApiService, 'createAndRunGraph').resolves({});
+
+            return nodeApiService.postNode({})
+            .then(function() {
+                expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
+                expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                    {
+                        name: 'Graph.PDU.Discovery',
+                        options: { defaults: pduNode.snmpSettings }
+                    },
+                    pduNode.id
+                );
+            });
+        });
     });
 
     describe("_findTargetNodes", function() {
