@@ -102,117 +102,16 @@ describe('Http.Api.Nodes', function () {
 
     describe('POST /nodes', function () {
         it('should create a node', function () {
-            waterline.nodes.create.resolves(node);
+            nodeApiService.postNode.resolves(node);
 
             return helper.request().post('/api/1.1/nodes')
                 .send(node)
                 .expect('Content-Type', /^application\/json/)
                 .expect(201, node)
                 .expect(function () {
-                    expect(waterline.nodes.create).to.have.been.calledOnce;
-                    expect(
-                        waterline.nodes.create.firstCall.args[0]
-                    ).to.have.property('id').and.equal(node.id);
-                });
-        });
-
-        it('should run discovery if the requested node is an autoDiscoverable switch', function() {
-            var switchNode = {
-                id: '1234abcd1234abcd1234abcd',
-                name: 'name',
-                snmpSettings: {
-                    host: '1.2.3.4',
-                    community: 'community'
-                },
-                autoDiscover: true,
-                type: 'switch'
-            };
-            waterline.nodes.create.resolves(switchNode);
-            workflowApiService.createAndRunGraph.resolves({});
-
-            return helper.request().post('/api/1.1/nodes')
-                .send(switchNode)
-                .expect(function () {
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
-                        {
-                            name: 'Graph.Switch.Discovery',
-                            options: { defaults: switchNode.snmpSettings }
-                        },
-                        switchNode.id
-                    );
-                });
-        });
-
-        it('should run discovery if the requested node is an autoDiscoverable mgmt server',
-        function() {
-            var mgmtNode = {
-                id: '1234abcd1234abcd1234abce',
-                name: 'mgmt server',
-                obmSettings: [
-                    {
-                        config: {
-                            host: '1.2.3.4',
-                            user: 'user',
-                            password: 'password'
-                        },
-                        service: 'ipmi-obm-service'
-                    }
-                ],
-                autoDiscover: true,
-                type: 'mgmt'
-            };
-            var options = {
-                defaults: {
-                    graphOptions: {
-                        target: mgmtNode.id
-                    },
-                    nodeId: mgmtNode.id
-                }
-            };
-
-            waterline.nodes.create.resolves(mgmtNode);
-            workflowApiService.createAndRunGraph.resolves({});
-
-            return helper.request().post('/api/1.1/nodes')
-                .send(mgmtNode)
-                .expect(function () {
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
-                        {
-                            name: 'Graph.MgmtSKU.Discovery',
-                            options: options
-                        }
-                    );
-                });
-        });
-
-        it('should run discovery if the requested node is an autoDiscoverable PDU',
-        function() {
-            var pduNode = {
-                id: '1234abcd1234abcd1234abcd',
-                name: 'name',
-                snmpSettings: {
-                    host: '1.2.3.4',
-                    community: 'community'
-                },
-                autoDiscover: true,
-                type: 'pdu'
-            };
-            waterline.nodes.create.resolves(pduNode);
-            workflowApiService.createAndRunGraph.resolves({});
-
-            return helper.request().post('/api/1.1/nodes')
-                .send(pduNode)
-                .expect(function () {
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
-                        {
-                            name: 'Graph.PDU.Discovery',
-                            options: { defaults: pduNode.snmpSettings }
-                        },
-                        pduNode.id
-                    );
+                    expect(nodeApiService.postNode).to.have.been.calledOnce;
+                    expect(nodeApiService.postNode.firstCall.args[0])
+                        .to.have.property('id').that.equals(node.id);
                 });
         });
     });
@@ -666,14 +565,20 @@ describe('Http.Api.Nodes', function () {
     });
 
     describe('POST /nodes/:identifier/workflows', function() {
+        var graph = {
+            instanceId: 'graphid'
+        };
+
         it('should create a workflow via the querystring', function () {
+            nodeApiService.setNodeWorkflow.resolves(graph);
+
             return helper.request().post('/api/1.1/nodes/123/workflows')
                 .query({ name: 'TestGraph.Dummy', domain: 'test' })
                 .expect('Content-Type', /^application\/json/)
                 .expect(201)
                 .expect(function () {
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledOnce;
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledWith(
                         {
                             name: 'TestGraph.Dummy',
                             domain: 'test'
@@ -684,13 +589,15 @@ describe('Http.Api.Nodes', function () {
         });
 
         it('should create a workflow with options via the querystring', function () {
+            nodeApiService.setNodeWorkflow.resolves(graph);
+
             return helper.request().post('/api/1.1/nodes/123/workflows')
                 .query({ name: 'TestGraph.Dummy', options: { test: 'foo' }, domain: 'test' })
                 .expect('Content-Type', /^application\/json/)
                 .expect(201)
                 .expect(function () {
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledOnce;
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledWith(
                         {
                             name: 'TestGraph.Dummy',
                             domain: 'test',
@@ -702,13 +609,15 @@ describe('Http.Api.Nodes', function () {
         });
 
         it('should create a workflow via the request body', function () {
+            nodeApiService.setNodeWorkflow.resolves(graph);
+
             return helper.request().post('/api/1.1/nodes/123/workflows')
                 .send({ name: 'TestGraph.Dummy', domain: 'test' })
                 .expect('Content-Type', /^application\/json/)
                 .expect(201)
                 .expect(function () {
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledOnce;
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledWith(
                         {
                             name: 'TestGraph.Dummy',
                             domain: 'test'
@@ -719,13 +628,15 @@ describe('Http.Api.Nodes', function () {
         });
 
         it('should create a workflow with options via the request body', function () {
+            nodeApiService.setNodeWorkflow.resolves(graph);
+
             return helper.request().post('/api/1.1/nodes/123/workflows')
                 .send({ name: 'TestGraph.Dummy', options: { test: true }, domain: 'test' })
                 .expect('Content-Type', /^application\/json/)
                 .expect(201)
                 .expect(function () {
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledOnce;
+                    expect(nodeApiService.setNodeWorkflow).to.have.been.calledWith(
                         {
                             name: 'TestGraph.Dummy',
                             domain: 'test',
@@ -737,7 +648,7 @@ describe('Http.Api.Nodes', function () {
         });
 
         it('should return a 404 if the node was not found', function () {
-            workflowApiService.createAndRunGraph.rejects(new Errors.NotFoundError('Not Found'));
+            nodeApiService.setNodeWorkflow.rejects(new Errors.NotFoundError('Not Found'));
 
             return helper.request().post('/api/1.1/nodes/123/workflows')
                 .send({})
@@ -746,7 +657,7 @@ describe('Http.Api.Nodes', function () {
         });
 
         it('should return a 400 on a bad request', function () {
-            workflowApiService.createAndRunGraph.rejects(new Errors.BadRequestError());
+            nodeApiService.setNodeWorkflow.rejects(new Errors.BadRequestError());
 
             return helper.request().post('/api/1.1/nodes/123/workflows')
                 .send({})
@@ -756,37 +667,22 @@ describe('Http.Api.Nodes', function () {
 
     describe('GET /nodes/:identifier/workflows/active', function() {
         it('should get the currently active workflow', function () {
-            var node = {
-                id: '123'
-            };
             var graph = {
                 instanceId: '0987'
             };
-            waterline.nodes.needByIdentifier.resolves(node);
-            workflowApiService.findActiveGraphForTarget.resolves(graph);
+            nodeApiService.getActiveNodeWorkflowById.resolves(graph);
 
             return helper.request().get('/api/1.1/nodes/123/workflows/active')
                 .expect('Content-Type', /^application\/json/)
                 .expect(200)
                 .expect(function () {
-                    expect(workflowApiService.findActiveGraphForTarget).to.have.been.calledOnce;
-                    expect(workflowApiService.findActiveGraphForTarget)
-                        .to.have.been.calledWith(node.id);
+                    expect(nodeApiService.getActiveNodeWorkflowById).to.have.been.calledOnce;
+                    expect(nodeApiService.getActiveNodeWorkflowById).to.have.been.calledWith('123');
                 });
         });
 
-        it('should return a 404 if the node was not found', function () {
-            workflowApiService.findActiveGraphForTarget.rejects(
-                new Errors.NotFoundError('Not Found'));
-
-            return helper.request().get('/api/1.1/nodes/123/workflows/active')
-                .expect('Content-Type', /^application\/json/)
-                .expect(404);
-        });
-
-        it('should return a 404 if the node has no active graph', function () {
-            workflowApiService.findActiveGraphForTarget.rejects(
-                new Errors.NotFoundError('Not Found'));
+        it('should return a 404', function () {
+            nodeApiService.getActiveNodeWorkflowById.rejects(new Errors.NotFoundError('Not Found'));
 
             return helper.request().get('/api/1.1/nodes/123/workflows/active')
                 .expect('Content-Type', /^application\/json/)
@@ -796,30 +692,18 @@ describe('Http.Api.Nodes', function () {
 
     describe('DELETE /nodes/:identifier/workflows/active', function() {
         it('should delete the currently active workflow', function () {
-            var node = {
-                id: '123'
-            };
-            var graph = {
-                instanceId: 'testgraphid'
-            };
-            waterline.nodes.needByIdentifier.resolves(node);
-            workflowApiService.findActiveGraphForTarget.resolves(graph);
-            workflowApiService.cancelTaskGraph.resolves();
+            nodeApiService.delActiveWorkflowById.resolves();
 
             return helper.request().delete('/api/1.1/nodes/123/workflows/active')
                 .expect(204)
                 .expect(function () {
-                    expect(workflowApiService.findActiveGraphForTarget).to.have.been.calledOnce;
-                    expect(workflowApiService.findActiveGraphForTarget)
-                        .to.have.been.calledWith(node.id);
-                    expect(workflowApiService.cancelTaskGraph).to.have.been.calledOnce;
-                    expect(workflowApiService.cancelTaskGraph)
-                        .to.have.been.calledWith(graph.instanceId);
+                    expect(nodeApiService.delActiveWorkflowById).to.have.been.calledOnce;
+                    expect(nodeApiService.delActiveWorkflowById).to.have.been.calledWith('123');
                 });
         });
 
         it('should return a 404 if the node was not found', function () {
-            waterline.nodes.needByIdentifier.rejects(new Errors.NotFoundError('Not Found'));
+            nodeApiService.delActiveWorkflowById.rejects(new Errors.NotFoundError('Not Found'));
 
             return helper.request().delete('/api/1.1/nodes/123/workflows/active')
                 .expect(404);

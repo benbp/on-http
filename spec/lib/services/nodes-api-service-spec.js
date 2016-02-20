@@ -213,11 +213,93 @@ describe("Http.Services.Api.Nodes", function () {
         });
     });
 
-    describe("_findTargetNodes", function() {
-        before("_findTargetNodes before", function() {
+    describe('setNodeWorkflow/setNodeWorkflowById', function() {
+        it('should create a workflow', function () {
+            this.sandbox.stub(workflowApiService, 'createAndRunGraph').resolves();
+
+            return nodeApiService.setNodeWorkflow(
+                { name: 'TestGraph.Dummy', domain: 'test' },
+                'testnodeid'
+            )
+            .then(function () {
+                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
+                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                        { name: 'TestGraph.Dummy', domain: 'test' },
+                        'testnodeid'
+                    );
+                });
         });
 
-        beforeEach(function() {
+        it('should create a workflow', function () {
+            this.sandbox.stub(workflowApiService, 'createAndRunGraph').resolves();
+
+            return nodeApiService.setNodeWorkflowById(
+                { name: 'TestGraph.Dummy', domain: 'test' },
+                'testnodeid'
+            )
+            .then(function () {
+                    expect(workflowApiService.createAndRunGraph).to.have.been.calledOnce;
+                    expect(workflowApiService.createAndRunGraph).to.have.been.calledWith(
+                        { name: 'TestGraph.Dummy', domain: 'test' },
+                        'testnodeid'
+                    );
+                });
+        });
+    });
+
+    describe('getActiveNodeWorkflowById', function() {
+        it('should get the currently active workflow', function () {
+            var node = {
+                id: '123'
+            };
+            var graph = {
+                instanceId: '0987'
+            };
+            waterline.nodes.needByIdentifier.resolves(node);
+            this.sandbox.stub(workflowApiService, 'findActiveGraphForTarget').resolves(graph);
+
+            return nodeApiService.getActiveNodeWorkflowById(node.id)
+            .then(function() {
+                expect(workflowApiService.findActiveGraphForTarget).to.have.been.calledOnce;
+                expect(workflowApiService.findActiveGraphForTarget)
+                    .to.have.been.calledWith(node.id);
+            });
+        });
+
+        it('should throw a NotFoundError if the node has no active graph', function () {
+            waterline.nodes.needByIdentifier.resolves({ id: 'testid' });
+            this.sandbox.stub(workflowApiService, 'findActiveGraphForTarget').resolves(null);
+            return expect(nodeApiService.getActiveNodeWorkflowById('test'))
+                    .to.be.rejectedWith(Errors.NotFoundError);
+        });
+    });
+
+    describe('delActiveWorkflowById', function() {
+        it('should delete the currently active workflow', function () {
+            var node = {
+                id: '123'
+            };
+            var graph = {
+                instanceId: 'testgraphid'
+            };
+            waterline.nodes.needByIdentifier.resolves(node);
+            this.sandbox.stub(workflowApiService, 'findActiveGraphForTarget').resolves(graph);
+            this.sandbox.stub(workflowApiService, 'cancelTaskGraph').resolves();
+
+            return nodeApiService.delActiveWorkflowById('testnodeid')
+            .then(function() {
+                expect(workflowApiService.findActiveGraphForTarget).to.have.been.calledOnce;
+                expect(workflowApiService.findActiveGraphForTarget)
+                    .to.have.been.calledWith(node.id);
+                expect(workflowApiService.cancelTaskGraph).to.have.been.calledOnce;
+                expect(workflowApiService.cancelTaskGraph)
+                    .to.have.been.calledWith(graph.instanceId);
+            });
+        });
+    });
+
+    describe("_findTargetNodes", function() {
+        before("_findTargetNodes before", function() {
         });
 
         it("_findTargetNodes should find related target nodes", function() {
