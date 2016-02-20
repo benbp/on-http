@@ -34,7 +34,6 @@ describe('Http.Api.Nodes', function () {
             workflowApiService = helper.injector.get('Http.Services.Api.Workflows');
             nodeApiService = helper.injector.get('Http.Services.Api.Nodes');
             sinon.stub(workflowApiService);
-            sinon.stub(nodeApiService);
 
             Promise = helper.injector.get('Promise');
             Constants = helper.injector.get('Constants');
@@ -60,7 +59,6 @@ describe('Http.Api.Nodes', function () {
         resetStubs(waterline.workitems);
         resetStubs(waterline.graphobjects);
         resetStubs(workflowApiService);
-        resetStubs(nodeApiService);
 
         ObmService.prototype.identifyOn.reset();
         ObmService.prototype.identifyOff.reset();
@@ -101,6 +99,14 @@ describe('Http.Api.Nodes', function () {
     });
 
     describe('POST /nodes', function () {
+        beforeEach(function() {
+            sinon.stub(nodeApiService, 'postNode');
+        });
+
+        afterEach(function() {
+            nodeApiService.postNode.restore();
+        });
+
         it('should create a node', function () {
             nodeApiService.postNode.resolves(node);
 
@@ -186,9 +192,16 @@ describe('Http.Api.Nodes', function () {
 
 
     describe('DELETE /nodes/:identifier', function () {
+        beforeEach(function() {
+            sinon.stub(nodeApiService, 'removeNode');
+        });
+
+        afterEach(function() {
+            nodeApiService.removeNode.restore();
+        });
+
         it('should delete a node', function () {
             var nodeApiService = helper.injector.get('Http.Services.Api.Nodes');
-            var removeStub = sinon.stub(nodeApiService, 'removeNode');
 
             waterline.nodes.needByIdentifier.resolves(node);
             nodeApiService.removeNode.resolves(node);
@@ -198,8 +211,6 @@ describe('Http.Api.Nodes', function () {
                 .expect(200, node)
                 .expect(function () {
                     expect(nodeApiService.removeNode).to.have.been.calledOnce;
-                })
-                .then(function () {removeStub.restore();
                 });
         });
 
@@ -569,6 +580,14 @@ describe('Http.Api.Nodes', function () {
             instanceId: 'graphid'
         };
 
+        beforeEach(function() {
+            sinon.stub(nodeApiService, 'setNodeWorkflow');
+        });
+
+        afterEach(function() {
+            nodeApiService.setNodeWorkflow.restore();
+        });
+
         it('should create a workflow via the querystring', function () {
             nodeApiService.setNodeWorkflow.resolves(graph);
 
@@ -666,6 +685,14 @@ describe('Http.Api.Nodes', function () {
     });
 
     describe('GET /nodes/:identifier/workflows/active', function() {
+        beforeEach(function() {
+            sinon.stub(nodeApiService, 'getActiveNodeWorkflowById');
+        });
+
+        afterEach(function() {
+            nodeApiService.getActiveNodeWorkflowById.restore();
+        });
+
         it('should get the currently active workflow', function () {
             var graph = {
                 instanceId: '0987'
@@ -691,6 +718,16 @@ describe('Http.Api.Nodes', function () {
     });
 
     describe('DELETE /nodes/:identifier/workflows/active', function() {
+        beforeEach(function() {
+            sinon.stub(nodeApiService, 'delActiveWorkflowById');
+        });
+
+        afterEach(function() {
+            if (nodeApiService.delActiveWorkflowById.restore) {
+                nodeApiService.delActiveWorkflowById.restore();
+            }
+        });
+
         it('should delete the currently active workflow', function () {
             nodeApiService.delActiveWorkflowById.resolves();
 
@@ -703,7 +740,8 @@ describe('Http.Api.Nodes', function () {
         });
 
         it('should return a 404 if the node was not found', function () {
-            nodeApiService.delActiveWorkflowById.rejects(new Errors.NotFoundError('Not Found'));
+            nodeApiService.delActiveWorkflowById.restore();
+            waterline.nodes.needByIdentifier.rejects(new Errors.NotFoundError('Not Found'));
 
             return helper.request().delete('/api/1.1/nodes/123/workflows/active')
                 .expect(404);
