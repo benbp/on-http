@@ -32,6 +32,62 @@ function onHttpContextFactory(di, directory) {
             this.logger = injector.get('Logger').initialize('Http.Server');
             self.injector = injector;
 
+            if (process.execArgv.indexOf('--harmony-proxies') >= 0) { //&&
+                //process.env.TRACE) {
+                require('harmony-reflect');
+
+                var _get = injector.get;
+
+                injector.get = function() {
+                    var dep = _get.apply(injector, Array.prototype.slice.call(arguments));
+
+                    if (arguments[0] !== process.env.TRACE) {
+                        return dep;
+                    }
+
+                    var proxy = new Proxy(dep, {  // jshint ignore:line
+                          get: function(target, name) {
+                              var traceLabel = 'trace ' + target.constructor.name + '.' + name;
+                              if (typeof target[name] === 'function') {
+                                  console.log(
+                                      'TRACING ' +
+                                      name +
+                                      ' from ' +
+                                      target.constructor.name +
+                                      ' at ' + __dirname);
+                                  return function() {
+                                      console.time(traceLabel);
+                                      var result =
+                                        target[name].apply(
+                                            target, Array.prototype.slice.call(arguments));
+                                      if (result && typeof result.then === 'function') {
+                                          // bluebird promises
+                                          if (result.tap) {
+                                              return result.tap(function() {
+                                                  console.timeEnd(traceLabel);
+                                              });
+                                          }
+                                          // waterline psuedo-promises
+                                          return result.then(function(out) {
+                                              console.timeEnd(traceLabel);
+                                              return out;
+                                          });
+                                      } else {
+                                          console.timeEnd(traceLabel);
+                                          return result;
+                                      }
+                                  };
+                              } else {
+                                  return target[name];
+                              }
+                          }
+                    });
+
+
+                    return proxy;
+                };
+            }
+
             return this;
         },
 
